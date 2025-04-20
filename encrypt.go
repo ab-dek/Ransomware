@@ -27,22 +27,22 @@ func keygen(maxLength int) ([]byte, error) {
 	return result, nil
 }
 
-func encrypt() (string, error) {
+func encrypt() ([]byte, error) {
 	fmt.Println("starting encrpytion")
 	key, err := keygen(16)
 	if err != nil {
-		return "", fmt.Errorf("error generating the key: %s", err.Error())
+		return nil, fmt.Errorf("error generating the key: %s", err.Error())
 	}
 	fmt.Println("aes key:", string(key))
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", fmt.Errorf("failed to create AES cipher block: %w", err)
+		return nil, fmt.Errorf("failed to create AES cipher block: %w", err)
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GCM cipher: %w", err)
+		return nil, fmt.Errorf("failed to create GCM cipher: %w", err)
 	}
 
 	err = filepath.Walk("./targetdir", func(path string, info os.FileInfo, err error) error {
@@ -71,11 +71,11 @@ func encrypt() (string, error) {
 	})
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	fmt.Println("encryption successful")
-	return string(key), nil
+	return key, nil
 }
 
 func decrypt(key string) error {
@@ -92,7 +92,7 @@ func decrypt(key string) error {
 	}
 
 	err = filepath.Walk("./targetdir", func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
+		if !info.IsDir() && path[len(path)-10:] == ".encrypted" {
 			ciphertext, err := os.ReadFile(path)
 			if err != nil {
 				return fmt.Errorf("failed to read input file: %w", err)
