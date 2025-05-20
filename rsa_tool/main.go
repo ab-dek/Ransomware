@@ -20,10 +20,15 @@ func main() {
 	prikey := dec.String("k", "", "private key")
 	ciph := dec.String("v", "", "cipher text")
 
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage:\n./rsa_tool gen\n\tGenerate RSA key pairs\n./rsa_tool dec -k <privatekey> -v <ciphertext>\n\tDecrypt ciphertext using the specified private key\n")
+	}
+
 	flag.Parse()
 
 	if len(os.Args) < 2 {
-		fmt.Println("TODO: create and print flag usage")
+		fmt.Println("no argument provided")
+		flag.Usage()
 		os.Exit(1)
 	}
 
@@ -71,7 +76,7 @@ func main() {
 
 	default:
 		fmt.Println(os.Args[1], "unknown command")
-		fmt.Println("TODO: create and print flag usage")
+		flag.Usage()
 		os.Exit(1)
 	}
 }
