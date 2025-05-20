@@ -11,7 +11,7 @@ This is a sample offline ransomware that encrypts users' files using AES-128 and
   - `rsa_tool` — a CLI tool used for generating RSA key pairs and decrypting ciphertext using a private key
 - Files are encrypted using AES in Galois/Counter Mode (GCM)
 - The AES encryption key is itself encrypted using RSA-2046 (RSA-OAEP-2046 with SHA-256)
-- A ransom note is displayed via a GUI using raygui
+- A ransom note is displayed via a GUI using [raygui](https://github.com/raysan5/raygui)
 - Targets selected folders within the current user's home directory.
 - works on both Windows and Linux.
 
@@ -39,6 +39,6 @@ To operate offline and avoid sending information to a decryption server, the att
 
 ### Screenshot
 
-![Alt text](Screenshot.png?raw=true "Title")
+![Alt text](Screenshot.png?raw=true "screenshot")
 
 ---
